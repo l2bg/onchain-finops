@@ -71,20 +71,67 @@ function processRedemptions(uint256 maxUsers) external whenNotPaused nonReentran
     }
 }
 ```
-## Gas Cost Simulation Challenge
-Say the queue has 10,000 entries but only 300 still need processing
+## Gas Cost Simulation 1
+Running forge test --gas-report for original function processRedemptions(uint256 maxUsers) shows 34200 gas spend for 1 call:
 
-If you call processRedemptions(100):
+╭----------------------------------------------------------+-----------------+-------+--------+-------+---------╮
+| src/RedemptionProcessor.sol:RedemptionProcessor Contract |                 |       |        |       |         |
++===============================================================================================================+
+| Deployment Cost                                          | Deployment Size |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| 601408                                                   | 2448            |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+|                                                          |                 |       |        |       |         |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| Function Name                                            | Min             | Avg   | Median | Max   | # Calls |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| addToQueue                                               | 66041           | 66041 | 66041  | 66041 | 1       |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| processRedemptions                                       | 34200           | 34200 | 34200  | 34200 | 1       |
+|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
+| setPendingRedemption                                     | 44215           | 44215 | 44215  | 44215 | 1       |
+╰----------------------------------------------------------+-----------------+-------+--------+-------+---------╯
 
-You scan 10,000 entries
-Skip 9,900 zombies
-Pay SLOAD and loop cost for each
+Let's say you have 100 addresses in the queue for this same function, but only 1 of them has a pending redemption amount > 0. The other 99 entries the contract must read, check, and ignore because there is nothing to process for them.
 
-Estimated waste:
+Running forge test --gas-report again shows 505737 gas spend for 100 queue size with 99 no action entries:
+╭----------------------------------------------------------+-----------------+--------+--------+--------+---------╮
+| src/RedemptionProcessor.sol:RedemptionProcessor Contract |                 |        |        |        |         |
++=================================================================================================================+
+| Deployment Cost                                          | Deployment Size |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| 601408                                                   | 2448            |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+|                                                          |                 |        |        |        |         |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| Function Name                                            | Min             | Avg    | Median | Max    | # Calls |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| addToQueue                                               | 48929           | 49111  | 48941  | 66041  | 100     |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| processRedemptions                                       | 505737          | 505737 | 505737 | 505737 | 1       |
+|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
+| setPendingRedemption                                     | 24231           | 24442  | 24243  | 44215  | 100     |
+╰----------------------------------------------------------+-----------------+--------+--------+--------+---------╯
 
-9,900 × ~4,000 gas ≈ 39.6M gas ≈ ~$2,800+ per run
-Monthly: $2,800 × 30 = $84,000/month
-Yearly: $84,000 x 12 = ~$1M in gas burned just from stale redemptions!
+---
+
+## Risks
+
+1-Gas is spent reading every entry, even the ones that don’t need work. The protocol will pay gas for every entry, not just for actual redemptions.
+
+2-The more entries in the queue that require no action, the more gas is “wasted” just reading and checking them, without any real work being done.
+
+3-This is the root of the protocol’s long-term gas cost risk: As the queue fills with entries that are already handled (but not removed), every processRedemptions call burns more and more gas for no reason.
+
+4-In this example, 99 “no action” entries added 471,537 gas (505,737 – 34,200) to the call, or about 4,764 gas per entry.
+
+5-The function’s gas usage scales linearly with queue size, so 1,000 queue entries: ~4.8M gas / 10,000 queue entries: ~47.7M gas (well above the block limit)
+
+---
+
+## Assessment
+
+Every time processRedemptions is called, the function scans every address in the queue, regardless of whether any redemption is actually owed. For each entry with zero pending redemption, the contract still performs costly storage reads. As the queue fills with completed/irrelevant entries, the gas required per call increases linearly, threatening protocol funds and long-term usability.
 
 ---
 
