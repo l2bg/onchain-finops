@@ -71,47 +71,18 @@ function processRedemptions(uint256 maxUsers) external whenNotPaused nonReentran
     }
 }
 ```
-## Gas Cost Simulation 1
-Running forge test --gas-report for original function processRedemptions(uint256 maxUsers) shows 34200 gas spend for 1 call:
+## Gas Cost Simulation
+Running Foundry's forge test --gas-report for the function processRedemptions(uint256 maxUsers) shows **34200** gas spend for 1 call:
 
-╭----------------------------------------------------------+-----------------+-------+--------+-------+---------╮
-| src/RedemptionProcessor.sol:RedemptionProcessor Contract |                 |       |        |       |         |
-+===============================================================================================================+
-| Deployment Cost                                          | Deployment Size |       |        |       |         |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-| 601408                                                   | 2448            |       |        |       |         |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-|                                                          |                 |       |        |       |         |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-| Function Name                                            | Min             | Avg   | Median | Max   | # Calls |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-| addToQueue                                               | 66041           | 66041 | 66041  | 66041 | 1       |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-| processRedemptions                                       | 34200           | 34200 | 34200  | 34200 | 1       |
-|----------------------------------------------------------+-----------------+-------+--------+-------+---------|
-| setPendingRedemption                                     | 44215           | 44215 | 44215  | 44215 | 1       |
-╰----------------------------------------------------------+-----------------+-------+--------+-------+---------╯
+<img width="1357" height="395" alt="image" src="https://github.com/user-attachments/assets/7cd67ac7-dd23-4e57-be47-1a77f02f6bb1" /><br>
 
-Let's say you have 100 addresses in the queue for this same function, but only 1 of them has a pending redemption amount > 0. The other 99 entries the contract must read, check, and ignore because there is nothing to process for them.
 
-Running forge test --gas-report again shows 505737 gas spend for 100 queue size with 99 no action entries:
-╭----------------------------------------------------------+-----------------+--------+--------+--------+---------╮
-| src/RedemptionProcessor.sol:RedemptionProcessor Contract |                 |        |        |        |         |
-+=================================================================================================================+
-| Deployment Cost                                          | Deployment Size |        |        |        |         |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-| 601408                                                   | 2448            |        |        |        |         |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-|                                                          |                 |        |        |        |         |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-| Function Name                                            | Min             | Avg    | Median | Max    | # Calls |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-| addToQueue                                               | 48929           | 49111  | 48941  | 66041  | 100     |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-| processRedemptions                                       | 505737          | 505737 | 505737 | 505737 | 1       |
-|----------------------------------------------------------+-----------------+--------+--------+--------+---------|
-| setPendingRedemption                                     | 24231           | 24442  | 24243  | 44215  | 100     |
-╰----------------------------------------------------------+-----------------+--------+--------+--------+---------╯
+Now, let's say you have 100 addresses in the queue for this same function, but only 1 of them has a pending redemption amount > 0. The other 99 entries the contract must read, check, and ignore because there is nothing to process for them.
+
+Running forge test --gas-report again shows **505737** gas spend for 100 queue size with 99 no action entries:
+
+<img width="1382" height="386" alt="image" src="https://github.com/user-attachments/assets/bb63cc76-c9e5-44e9-9e96-0d73cfedb5b8" /><br>
+
 
 ---
 
