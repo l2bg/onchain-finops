@@ -18,9 +18,9 @@ structure introduces major gas inefficiencies:
 
 ## Status
 	
-Exploit Risk	🔵 Low
-Cost Risk	🔴 High
-Fix Simplicity	🟢 Simple
+Exploit Risk	🔵 Low <br>
+Cost Risk	🔴 High <br>
+Fix Simplicity	🟢 Simple <br>
 
 ---
 
@@ -150,13 +150,49 @@ function processRedemptions(uint256 maxUsers) external whenNotPaused nonReentran
 }
 ```
 
-## Comments
+## Mitigations
 
-This function represents a major ongoing gas leak that scales with protocol usage.
-With the solution presented above, the protocol could potentially:
+1- Reliability: The top **uint256 public nextRedemptionIndex** remembers the last queue index processed. Next call starts from where it left off, instead of always starting from 0.
 
-Prevent reprocessing of thousands of inactive users
-Cut keeper costs by thousands per call
-Improve efficiency as protocol scales
+2-Efficiency: In the original function every call starts at **i = 0**, scanning the entire queue including all users already processed, or with nothing pending. As the queue grows, more and more gas is wasted every call in a linear bloat. The Optimized function starts at **i = nextRedemptionIndex**, which means already-checked users are skipped entirely thus ending extra reading storage or gas wasting.
+
+3-Predictability: Gas cost grows only with the number of new, unprocessed entries since the last run. If you process 100 new users, you pay for just those 100. The protocol treasury never pays again for the 1,000 users from last week.
+
+---
+
+## Gas Simulation Rerun
+Rerunning Foundry's forge test --gas-report for the optimized function processRedemptions(uint256 maxUsers) shows **57,199** gas spend for 1 call:
+<img width="1150" height="152" alt="image" src="https://github.com/user-attachments/assets/86643396-915f-4f1e-8734-954aa928dbfd" />
+<br>
+
+
+---
+
+## Re-Assessment
+
+Why does the optimized function use more gas than the original function? Because the optimized function uses a new state variable **nextRedemptionIndex** to remember its position in the queue. The original function doesn’t update any new storage variable, so it’s slightly cheaper at first.
+
+But with large queues (10, 100, 1,000 users), the original function’s gas cost skyrockets because it scans and re-reads all entries every time.
+
+The optimized function always pays roughly 57,199 gas, no matter how many extra entries are in the queue, so gas stays flat.
+
+
+| Version   | Queue Size | Users Needing Redemption | Gas Used                         |
+| --------- | ---------- | ------------------------ | -------------------------------- |
+| Original  | 1          | 1                        | 34,200                           |
+| Original  | 100        | 1                        | 505,737                          |
+| Original  | 1,000      | 1                        | \~4,800,000 (predicted)          |
+| Original  | 10,000     | 1                        | \~47,700,000 (predicted)         |
+| Optimized | 1          | 1                        | 57,199                           |
+| Optimized | 100        | 1                        | 57,199                           |
+| Optimized | 1,000      | 1                        | 57,199                           |
+| Optimized | 10,000     | 1                        | 57,199                           |
+
+
+The small extra cost per call (due to the **nextRedemptionIndex** storage write) is a one-time price for unlocking huge gas savings and scalability as the protocol grows. With the solution presented above, the protocol could potentially:
+
+Prevent reprocessing of thousands of inactive users;<br>
+Cut keeper costs by thousands per call;<br>
+Improve efficiency as protocol scales.<br>
 
 
